@@ -1,0 +1,57 @@
+CREATE CLASS stu_ (
+	name CHAR(10),
+	gender CHAR(1),
+	age INT,
+	stuid LONG,
+	isgraduate BOOLEAN,
+	testfloat FLOAT
+);
+
+CREATE SELECTDEPUTY graduates
+SELECT name AS gname, age AS gage 
+FROM stu_
+WHERE isgraduate = TRUE AND (A = FALSE OR B = 20);
+
+CREATE CLASS droptest (
+	test INT
+);
+
+DROP CLASS droptest;
+
+INSERT INTO stu_ VALUES (
+	'A',
+	'M',
+	20,
+	201000000000,
+	TRUE,
+	2.333
+);
+
+INSERT INTO stu_ VALUES (
+	'B',
+	'F',
+	19,
+	201100000000,
+	FALSE,
+	2.323
+);
+
+INSERT INTO stu_ VALUES (
+	'C',
+	'M',
+	21,
+	200900000000,
+	TRUE,
+	2.3333
+);
+
+DELETE FROM stu_
+WHERE age = 21;
+
+SELECT name, stuid
+FROM stu_
+WHERE testfloat >= 2 AND isgraduate = TRUE;
+
+SELECT graduates CROSS stu_.age
+FROM graduates
+WHERE name = 'A';
