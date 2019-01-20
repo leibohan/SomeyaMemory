@@ -16,6 +16,7 @@ oddlStatement
     | deleteFromClass
     | simpleQuery
     | crossClassQuery
+    | updateObject
     ;
 
 createSourceClass
@@ -31,7 +32,7 @@ createDefinition
 
 createDeputyClass
     : CREATE SELECTDEPUTY className
-      SELECT sAttr AS dAttr (',' sAttr AS dAttr)* 
+      SELECT expression AS dAttr (',' expression AS dAttr)* 
       FROM sClassName
       (WHERE expression)?
     ;
@@ -47,9 +48,9 @@ valueList
     ;
 
 value
-    : STRING
-    | DECIMAL
-    | REAL
+    : STRING_LITERAL
+    | (SIGNED_DECIMAL | DECIMAL)
+    | (SIGNED_REAL | REAL)
     | (TRUE | FALSE)
     ;
 
@@ -65,9 +66,17 @@ crossClassQuery
       (WHERE expression)?
     ;
 
+updateObject
+    : UPDATE className SET attrName '=' value
+      WHERE expression
+    ;
+
+
 expression
-    : (STRING | DECIMAL | REAL | TRUE | FALSE)
+    : value
     | attrName 
+    | expression op=('*' | '/' | '%') expression
+    | expression op=('+' | '-') expression
     | expression op=('<' | '<=' | '>' | '>=') expression
     | expression op=('=' | '==' | '!=' | '<>' ) expression
     | expression AND expression
@@ -89,35 +98,37 @@ attrList
     ;
 dataType
     : CHAR ('(' DECIMAL ')')?
-    | typeName=(INT | LONG | FLOAT | BOOLEAN)
+    | typeName=(INT | FLOAT | BOOLEAN)
     ;
 
 // Keywords
-AS: 'AS';
-CREATE: 'CREATE';
-CLASS:  'CLASS';
-CROSS:  'CROSS';
-DELETE: 'DELETE';
-DROP:   'DROP';
-FROM:   'FROM';
-INSERT:  'INSERT';
-INTO:    'INTO';
-SELECT:  'SELECT';
-SELECTDEPUTY: 'SELECTDEPUTY';
-VALUES:  'VALUES';
-WHERE:   'WHERE';
+AS : A S;
+CLASS:  C L A S S;
+CREATE : C R E A T E;
+CROSS : C R O S S;
+DELETE : D E L E T E;
+DROP : D R O P;
+FROM : F R O M;
+INSERT : I N S E R T;
+INTO : I N T O;
+SELECT : S E L E C T;
+SELECTDEPUTY: S E L E C T D E P U T Y;
+UPDATE : U P D A T E;
+VALUES : V A L U E S;
+SET : S E T;
+WHERE : W H E R E;
 
-BOOLEAN: 'BOOLEAN';
-CHAR: 'CHAR';
-INT:  'INT';
-LONG: 'LONG';
-FLOAT:'FLOAT';
+BOOLEAN: B O O L E A N;
+CHAR:    C H A R;
+INT:     I N T;
+LONG:    L O N G;
+FLOAT:   F L O A T;
 
-TRUE: 'TRUE';
-FALSE: 'FALSE';
-AND: 'AND';
-OR:  'OR';
-NOT: 'NOT';
+TRUE: T R U E;
+FALSE: F A L S E;
+AND: A N D ;
+OR:  O R;
+NOT: N O T;
 
 // Constructors symbols
 DOT:                '.';
@@ -133,9 +144,40 @@ SPACE: [ \t\r\n]+    -> channel(HIDDEN);
 
 DECIMAL: DEC_DIGIT+;
 REAL:    DEC_DIGIT+ '.' DEC_DIGIT+;
-STRING:  '\'' STRING_LITERAL* '\'';
+STRING_LITERAL
+ : '\'' ( ~'\'' | '\'\'' )* '\''
+ ;
+
+SIGNED_DECIMAL: ('+' | '-')? DECIMAL;
+SIGNED_REAL: ('+' | '-')? REAL;
 
 ID : [a-zA-Z_] [a-zA-Z0-9_]* ;
 
-fragment STRING_LITERAL: [A-Z_$0-9]*?[A-Z_$]+?[A-Z_$0-9]*;
 fragment DEC_DIGIT:  [0-9];
+
+fragment A : [aA];
+fragment B : [bB];
+fragment C : [cC];
+fragment D : [dD];
+fragment E : [eE];
+fragment F : [fF];
+fragment G : [gG];
+fragment H : [hH];
+fragment I : [iI];
+fragment J : [jJ];
+fragment K : [kK];
+fragment L : [lL];
+fragment M : [mM];
+fragment N : [nN];
+fragment O : [oO];
+fragment P : [pP];
+fragment Q : [qQ];
+fragment R : [rR];
+fragment S : [sS];
+fragment T : [tT];
+fragment U : [uU];
+fragment V : [vV];
+fragment W : [wW];
+fragment X : [xX];
+fragment Y : [yY];
+fragment Z : [zZ];

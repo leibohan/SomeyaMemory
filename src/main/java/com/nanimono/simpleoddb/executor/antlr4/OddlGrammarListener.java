@@ -147,6 +147,16 @@ public interface OddlGrammarListener extends ParseTreeListener {
 	 */
 	void exitCrossClassQuery(OddlGrammarParser.CrossClassQueryContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link OddlGrammarParser#updateObject}.
+	 * @param ctx the parse tree
+	 */
+	void enterUpdateObject(OddlGrammarParser.UpdateObjectContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link OddlGrammarParser#updateObject}.
+	 * @param ctx the parse tree
+	 */
+	void exitUpdateObject(OddlGrammarParser.UpdateObjectContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link OddlGrammarParser#expression}.
 	 * @param ctx the parse tree
 	 */

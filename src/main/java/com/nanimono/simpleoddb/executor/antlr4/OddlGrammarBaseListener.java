@@ -183,6 +183,18 @@ public class OddlGrammarBaseListener implements OddlGrammarListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterUpdateObject(OddlGrammarParser.UpdateObjectContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitUpdateObject(OddlGrammarParser.UpdateObjectContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterExpression(OddlGrammarParser.ExpressionContext ctx) { }
 	/**
 	 * {@inheritDoc}

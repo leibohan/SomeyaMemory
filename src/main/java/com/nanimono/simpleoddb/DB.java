@@ -1,5 +1,7 @@
 package com.nanimono.simpleoddb;
 
+import com.nanimono.simpleoddb.catalog.Catalog;
+
 public class DB {
     private static DB _instance = new DB();
     private final Catalog _catalog;

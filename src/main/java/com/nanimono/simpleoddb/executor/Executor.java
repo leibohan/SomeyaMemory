@@ -1,5 +1,6 @@
 package com.nanimono.simpleoddb.executor;
 
+import com.nanimono.simpleoddb.catalog.Catalog;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarLexer;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarParser;
 import org.antlr.v4.runtime.CharStream;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 public class Executor {
 
     public static void main(String[] args) throws IOException {
+        Catalog catalog = new Catalog();
 
         Path path = FileSystems.getDefault().getPath("src\\test", "oddl_test.oddl");
         CharStream charStream = CharStreams.fromPath(path);
@@ -25,7 +27,7 @@ public class Executor {
         ParseTree tree = parser.root();
 
         ParseTreeWalker walker = new ParseTreeWalker();
-        walker.walk(new ExecutorListener(), tree);
+        walker.walk(new ExecutorListener(catalog), tree);
 
         //System.out.println(tree.toStringTree(executor));
     }

@@ -1,67 +1,151 @@
 package com.nanimono.simpleoddb.executor;
 
+import com.nanimono.simpleoddb.catalog.Catalog;
 import com.nanimono.simpleoddb.object.Type;
 import com.nanimono.simpleoddb.object.TypeEnum;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarBaseListener;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarParser;
 
+import java.util.HashMap;
+import java.util.InputMismatchException;
 import java.util.List;
+import java.util.Stack;
 
 public class ExecutorListener extends OddlGrammarBaseListener {
+
+    private Catalog catalog;
+
+    /**
+     * 分析expression所使用的成员变量
+     */
+    private ExprTreeNode current;
+    private Stack<ExprTreeNode> treeNodeStack;
+    private Stack<ExprTreeNode> rootNodeStack;
+
+    public ExecutorListener(Catalog catalog) {
+        this.catalog = catalog;
+        current = null;
+        treeNodeStack = null;
+        rootNodeStack = null;
+    }
+
+    @Override
+    public void enterExpression(OddlGrammarParser.ExpressionContext ctx) {
+        if (ctx.LR_BRACKET() != null) return;
+        current = new ExprTreeNode();
+        if (ctx.value() != null) {
+            OddlGrammarParser.ValueContext value = ctx.value();
+            if (value.STRING_LITERAL() != null) {
+                current.setType(ExprTreeNode.ExprTreeNodeType.CONST_CHAR);
+                current.setData(value.getText());
+            }
+            else if (value.DECIMAL() != null || value.SIGNED_DECIMAL() != null) {
+                current.setType(ExprTreeNode.ExprTreeNodeType.CONST_INT);
+                current.setData(Integer.parseInt(value.getText()));
+            }
+            else if (value.REAL() != null || value.SIGNED_REAL() != null) {
+                current.setType(ExprTreeNode.ExprTreeNodeType.CONST_FLOAT);
+                current.setData(Float.parseFloat(value.getText()));
+            }
+            else if (value.TRUE() != null || value.FALSE() != null) {
+                current.setType(ExprTreeNode.ExprTreeNodeType.CONST_BOOL);
+                current.setData(Boolean.parseBoolean(value.getText()));
+            }
+
+        }
+        else if (ctx.attrName() != null) {
+            current.setType(ExprTreeNode.ExprTreeNodeType.VAR);
+            current.setData(ctx.attrName().getText());
+        }
+        else {
+            current.setType(ExprTreeNode.ExprTreeNodeType.OP);
+            current.setData(ctx.children.get(1).getText());
+        }
+        treeNodeStack.push(current);
+        System.out.println(ctx.getText());
+    }
+
+    @Override
+    public void exitExpression(OddlGrammarParser.ExpressionContext ctx) {
+        if (ctx.LR_BRACKET() != null) return;
+        current = treeNodeStack.pop();
+        if (!treeNodeStack.isEmpty()) {
+            ExprTreeNode father = treeNodeStack.peek();
+            if (father.getLchild() == null) father.setLchild(current);
+            else if (father.getRchild() == null) father.setRchild(current);
+            else throw new UnsupportedOperationException("Expression tree build failed.");
+        }
+        if (treeNodeStack.isEmpty()) rootNodeStack.push(current);
+        System.out.println(ctx.getText());
+    }
 
     @Override
     public void exitCreateSourceClass(OddlGrammarParser.CreateSourceClassContext ctx) {
         String className = ctx.className().ID().getText();
         List<OddlGrammarParser.CreateDefinitionContext> list = ctx.createDefinitions().createDefinition();
-        String[] definitions_name = new String[list.size()];
-        Type[] definitions_type = new Type[definitions_name.length];
-        for (int index = 0; index < definitions_name.length; index++) {
+        String[] attrList = new String[list.size()];
+        Type[] typeList = new Type[attrList.length];
+        for (int index = 0; index < attrList.length; index++) {
             OddlGrammarParser.CreateDefinitionContext current = list.get(index);
-            definitions_name[index] = current.ID().getText();
+            attrList[index] = current.ID().getText();
             switch (current.dataType().children.get(0).getText()) {
                 case "CHAR":
-                    definitions_type[index] = new Type(TypeEnum.CHAR_TYPE);
-                    definitions_type[index].setSize(Integer.parseInt(current.dataType().children.get(2).getText()));
+                    typeList[index] = new Type(TypeEnum.CHAR_TYPE);
+                    typeList[index].setSize(Integer.parseInt(current.dataType().children.get(2).getText()));
                     break;
 
                 case "INT":
-                    definitions_type[index] = new Type(TypeEnum.INT_TYPE);
+                    typeList[index] = new Type(TypeEnum.INT_TYPE);
                     break;
 
                 case "LONG":
-                    definitions_type[index] = new Type(TypeEnum.LONG_TYPE);
+                    typeList[index] = new Type(TypeEnum.LONG_TYPE);
                     break;
 
                 case "FLOAT":
-                    definitions_type[index] = new Type(TypeEnum.FLOAT_TYPE);
+                    typeList[index] = new Type(TypeEnum.FLOAT_TYPE);
                     break;
 
                 case "BOOLEAN":
-                    definitions_type[index] = new Type(TypeEnum.BOOLEAN_TYPE);
+                    typeList[index] = new Type(TypeEnum.BOOLEAN_TYPE);
                     break;
             }
         }
 
-        System.out.println("CREATE CLASS " + className);
+        catalog.addSourceClass(className, attrList, typeList);
+    }
+
+    @Override
+    public void enterCreateDeputyClass(OddlGrammarParser.CreateDeputyClassContext ctx) {
+        current = null;
+        treeNodeStack = new Stack<>();
+        rootNodeStack = new Stack<>();
     }
 
     @Override
     public void exitCreateDeputyClass(OddlGrammarParser.CreateDeputyClassContext ctx) {
-        String className = ctx.className().getText();
+
         String sClassName = ctx.sClassName().getText();
-        String[] sAttr = new String[ctx.sAttr().size()];
-        String[] dAttr = new String[ctx.dAttr().size()];
-        for (int index = 0; index < sAttr.length; index++) {
-            sAttr[index] = ctx.sAttr(index).getText();
+        if (catalog.getClassId(sClassName) == null) throw new IllegalArgumentException("Source Class doesn't exist.");
+        Catalog.AttrTableTuple[] sourceClassTypeList = catalog.getClassTypeList(catalog.getClassId(sClassName));
+        HashMap<String, Type> name2type = new HashMap<>();
+        for (Catalog.AttrTableTuple tuple : sourceClassTypeList) {
+            name2type.put(tuple.getAttrName(), tuple.getType());
+        }
+        String className = ctx.className().getText();
+        String[] switchExprs = new String[ctx.AS().size()];
+        String[] dAttr = new String[ctx.AS().size()];
+        for (int index = 0; index < switchExprs.length; index++) {
+            switchExprs[index] = ctx.expression(index).getText();
             dAttr[index] = ctx.dAttr(index).getText();
         }
-
-        // TODO: expression
+        String deputyRule = ctx.expression().get(ctx.expression().size() - 1).getText();
     }
 
     @Override
     public void exitDropClass(OddlGrammarParser.DropClassContext ctx) {
         String className = ctx.className().getText();
+        catalog.dropClass(className);
     }
 
     @Override

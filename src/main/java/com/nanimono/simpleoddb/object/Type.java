@@ -33,6 +33,11 @@ public class Type implements Serializable {
         this.size = type == TypeEnum.CHAR_TYPE ? size : type.getSize();
     }
 
+    public Type(Type old) {
+        this.typeEnum = old.typeEnum;
+        this.size = old.size;
+    }
+
     public Field parse(DataInputStream dis) throws ParseException {
         try {
             switch (typeEnum) {
