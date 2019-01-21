@@ -52,5 +52,4 @@ public class MainStorage {
 		}
 		return content;
 	}
-	
 }
