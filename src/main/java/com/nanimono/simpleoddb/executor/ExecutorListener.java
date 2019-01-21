@@ -1,13 +1,11 @@
 package com.nanimono.simpleoddb.executor;
 
-import com.nanimono.simpleoddb.catalog.Catalog;
-import com.nanimono.simpleoddb.object.Type;
-import com.nanimono.simpleoddb.object.TypeEnum;
+import com.nanimono.simpleoddb.Catalog;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarBaseListener;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarParser;
+import com.nanimono.simpleoddb.object.Type;
+import com.nanimono.simpleoddb.object.TypeEnum;
 
-import java.util.HashMap;
-import java.util.InputMismatchException;
 import java.util.List;
 import java.util.Stack;
 
@@ -62,7 +60,6 @@ public class ExecutorListener extends OddlGrammarBaseListener {
             current.setData(ctx.children.get(1).getText());
         }
         treeNodeStack.push(current);
-        System.out.println(ctx.getText());
     }
 
     @Override
@@ -76,7 +73,6 @@ public class ExecutorListener extends OddlGrammarBaseListener {
             else throw new UnsupportedOperationException("Expression tree build failed.");
         }
         if (treeNodeStack.isEmpty()) rootNodeStack.push(current);
-        System.out.println(ctx.getText());
     }
 
     @Override
@@ -126,12 +122,6 @@ public class ExecutorListener extends OddlGrammarBaseListener {
     public void exitCreateDeputyClass(OddlGrammarParser.CreateDeputyClassContext ctx) {
 
         String sClassName = ctx.sClassName().getText();
-        if (catalog.getClassId(sClassName) == null) throw new IllegalArgumentException("Source Class doesn't exist.");
-        Catalog.AttrTableTuple[] sourceClassTypeList = catalog.getClassTypeList(catalog.getClassId(sClassName));
-        HashMap<String, Type> name2type = new HashMap<>();
-        for (Catalog.AttrTableTuple tuple : sourceClassTypeList) {
-            name2type.put(tuple.getAttrName(), tuple.getType());
-        }
         String className = ctx.className().getText();
         String[] switchExprs = new String[ctx.AS().size()];
         String[] dAttr = new String[ctx.AS().size()];
@@ -139,7 +129,13 @@ public class ExecutorListener extends OddlGrammarBaseListener {
             switchExprs[index] = ctx.expression(index).getText();
             dAttr[index] = ctx.dAttr(index).getText();
         }
-        String deputyRule = ctx.expression().get(ctx.expression().size() - 1).getText();
+        String deputyRule = ctx.WHERE() == null ? null : ctx.expression().get(ctx.expression().size() - 1).getText();
+        ExprTreeNode[] exprTrees = new ExprTreeNode[rootNodeStack.size()];
+        for (int i = exprTrees.length - 1; i >= 0; i--) {
+            exprTrees[i] = rootNodeStack.pop();
+        }
+
+        catalog.addSelectDeputyClass(className, sClassName, switchExprs, dAttr, deputyRule, exprTrees);
     }
 
     @Override

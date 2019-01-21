@@ -1,6 +1,6 @@
 package com.nanimono.simpleoddb.executor;
 
-import com.nanimono.simpleoddb.catalog.Catalog;
+import com.nanimono.simpleoddb.Catalog;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarLexer;
 import com.nanimono.simpleoddb.executor.antlr4.OddlGrammarParser;
 import org.antlr.v4.runtime.CharStream;
