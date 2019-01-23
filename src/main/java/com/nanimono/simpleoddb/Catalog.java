@@ -4,14 +4,17 @@ import com.nanimono.simpleoddb.executor.ExprTreeNode;
 import com.nanimono.simpleoddb.object.Type;
 import com.nanimono.simpleoddb.object.TypeEnum;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 
 /**
  * 存储系统表并对系统表进行操作。
  */
-public class Catalog {
+public class Catalog implements Serializable {
 
     //===================================成员================================================
 
@@ -38,7 +41,7 @@ public class Catalog {
     /**
      * 代理表，使用哈希表进行存储，被代理类id作为key
      */
-    private HashMap<Integer, DeputyTableTuple> beDeputyTable = new HashMap<>();
+    private HashMap<Integer, ArrayList<DeputyTableTuple>> beDeputyTable = new HashMap<>();
 
     /**
      * 切换规则表，使用哈希表进行存储，代理类id作为key；同一个类的切换规则存储在一个数组中，代理类属性索引作为数组索引
@@ -52,7 +55,7 @@ public class Catalog {
     /**
      * 类表元组类，成员包括类id、类名、类类型、是否有子类
      */
-    public class ClassTableTuple {
+    public class ClassTableTuple implements Serializable {
 
         private int classId;       // start from zero
         private String className;
@@ -92,7 +95,7 @@ public class Catalog {
     /**
      * 属性表元组类，成员包括所属类引用，属性名，属性大小，数据类型，属性类型（实属性、虚属性）
      */
-    public class AttrTableTuple {
+    public class AttrTableTuple implements Serializable {
 
         private ClassTableTuple belongClass;
         private String attrName;
@@ -131,9 +134,41 @@ public class Catalog {
     }
 
     /**
+     * 类属性迭代器
+     */
+    private class AttrIterator implements Iterator<AttrTableTuple> {
+        private int classId;
+        private int pos = 0;
+
+        public AttrIterator(int classId) {
+            this.classId = classId;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return attrTable.get(classId).length > pos;
+        }
+
+        @Override
+        public AttrTableTuple next() {
+            if (!hasNext()) throw new NoSuchElementException();
+            return attrTable.get(classId)[pos++];
+        }
+    }
+
+    public AttrIterator getClassAttrIterator(String className) {
+        if (!className2classId.containsKey(className)) throw new IllegalArgumentException("Class doesn't exist.");
+        return new AttrIterator(getClassId(className));
+    }
+
+    public AttrIterator getClassAttrIterator(int classId) {
+        return new AttrIterator(classId);
+    }
+
+    /**
      * 代理表元组类，成员包括代理类id、源类id、代理规则；代理规则使用字符串及二叉树进行存储。
      */
-    public class DeputyTableTuple {
+    public class DeputyTableTuple implements Serializable {
 
         private int deputyClassId;
         private int sourceClassId;
@@ -161,7 +196,7 @@ public class Catalog {
     /**
      * 切换规则表元组类，成员包括代理类id、源类id、代理类属性索引、切换规则；切换规则使用字符串及二叉树进行存储。
      */
-    public class SwitchExprTableTuple {
+    public class SwitchExprTableTuple implements Serializable {
 
         private int deputyClassId;
         private int sourceClassId;
@@ -202,10 +237,12 @@ public class Catalog {
 
     //======================================类方法===============================================
 
+    public ClassTableTuple getClassTuple(int classId) { return classTable.get(classId); }
+
     /**
      * 获取类的属性列表
      *
-     * @param classId 类名
+     * @param classId 类id
      * @return 类的属性列表
      */
     public AttrTableTuple[] getClassAttrList(int classId) {
@@ -215,7 +252,7 @@ public class Catalog {
     /**
      * 获取代理类的切换规则
      *
-     * @param classId 类名
+     * @param classId 类id
      * @return
      */
     public SwitchExprTableTuple[] getSwitchRuleList(int classId) {
@@ -233,12 +270,55 @@ public class Catalog {
     }
 
     /**
+     * 获取被代理类的代理规则列表
+     *
+     * @param classId 类id
+     * @return
+     */
+    public ArrayList<DeputyTableTuple> getBeDeputyRule(int classId) {
+        return beDeputyTable.get(classId);
+    }
+
+    /**
      * 获取类id
      *
      * @param className 类名
      * @return
      */
-    public Integer getClassId(String className) { return className2classId.get(className); }
+    public Integer getClassId(String className) {
+        if (!className2classId.containsKey(className)) throw new IllegalArgumentException("Class doesn't exist.");
+        return className2classId.get(className);
+    }
+
+    public String getClassName(int classId) {
+        if (!(classId >= 0 && classId < classTable.size() && classTable.get(classId).classType != ClassType.UNALLOCATED))
+            throw new IllegalArgumentException("Class doesn't exist.");
+        return classTable.get(classId).className;
+    }
+
+    public boolean isClassExist(int classId) {
+        return (classId >= 0 && classId < classTable.size() && classTable.get(classId).classType != ClassType.UNALLOCATED);
+    }
+
+    /**
+     * 获取类类型
+     *
+     * @param classId 类id
+     * @return
+     */
+    public ClassType getClassType(int classId) {
+        return classTable.get(classId).classType;
+    }
+
+    /**
+     * 类是否有子类
+     *
+     * @param classId 类id
+     * @return
+     */
+    public boolean getClassHasSubclass(int classId) {
+        return classTable.get(classId).hasSubClass;
+    }
 
     /**
      * 添加新的源类
@@ -326,6 +406,9 @@ public class Catalog {
         if (exprTrees == null || exprTrees.length == 0) {
             throw new IllegalArgumentException("Expression tree cannot be empty.");
         }
+        if (deputyRule == null || deputyRule.length() == 0) {
+            throw new IllegalArgumentException("Deputy rule cannot be empty.");
+        }
         if (!(switchExprs.length == attrNameList.length && switchExprs.length + 1 == exprTrees.length)) {
             throw new IllegalArgumentException("Switching expression list and attribute name list and expression trees must have the same size");
         }
@@ -353,14 +436,14 @@ public class Catalog {
         HashMap<String, TypeEnum> sourceAttrName2Type = new HashMap<>();
         for (AttrTableTuple tuple : sourceClassAttrs) sourceAttrName2Type.put(tuple.attrName, tuple.type);
         // where 表达式必须是布尔型
-        if (getTreeType(exprTrees[exprTrees.length - 1], sourceAttrName2Type) != TypeEnum.BOOLEAN_TYPE)
+        if (ExprTreeNode.getTreeType(exprTrees[exprTrees.length - 1], sourceAttrName2Type) != TypeEnum.BOOLEAN_TYPE)
             throw new IllegalArgumentException("Where clause illegal.");
         // 切换规则表达式必须有类型
         Type[] deputyClassAttrTypes = new Type[exprTrees.length - 1];
         for (int i = 0; i < exprTrees.length - 1; i++) {
             ExprTreeNode tree = exprTrees[i];
             TypeEnum treeType;
-            if ((treeType = getTreeType(tree, sourceAttrName2Type)) == null) {
+            if ((treeType = ExprTreeNode.getTreeType(tree, sourceAttrName2Type)) == null) {
                 throw new IllegalArgumentException("Expression illegal.");
             }
             else {
@@ -406,13 +489,14 @@ public class Catalog {
                 deputyRule,
                 exprTrees[exprTrees.length - 1]);
         deputyTable.put(classTableIndex, deputyTuple);
-        beDeputyTable.put(sourceClass.classId, deputyTuple);
+        if (!beDeputyTable.containsKey(sourceClass.classId)) beDeputyTable.put(sourceClass.classId, new ArrayList<>());
+        beDeputyTable.get(sourceClass.classId).add(deputyTuple);
 
         // 修改SwitchExprTable
         SwitchExprTableTuple[] switchExprList = new SwitchExprTableTuple[attrList.length];
         for (int i = 0; i < switchExprList.length; i++) {
             switchExprList[i] = new SwitchExprTableTuple(classTableIndex,
-                    className2classId.get(sClassName),
+                    getClassId(sClassName),
                     i,
                     switchExprs[i],
                     exprTrees[i]);
@@ -431,23 +515,27 @@ public class Catalog {
             throw new IllegalArgumentException("Class doesn't exist.");
 
         // 先删除子类
-        ClassTableTuple classToDelete = classTable.get(className2classId.get(className));
+        ClassTableTuple classToDelete = classTable.get(getClassId(className));
         if (classToDelete.hasSubClass) {
-            dropClass(beDeputyTable.get(classToDelete.classId).deputyClassId);
+            while (!beDeputyTable.get(classToDelete.classId).isEmpty())
+                dropClass(beDeputyTable.get(classToDelete.classId).remove(0).deputyClassId);
+            beDeputyTable.remove(classToDelete.classId);
         }
 
-        // 若是代理类，先删除切换规则、代理规则中的条目
+        // 若是代理类，删除切换规则、代理规则中的条目
         if (classToDelete.classType != ClassType.SOURCECLASS) {
             switchExprTable.remove(classToDelete.classId);
-            beDeputyTable.remove(deputyTable.get(classToDelete.classId).sourceClassId);
+            //beDeputyTable.remove(deputyTable.get(classToDelete.classId).sourceClassId);
+            if (beDeputyTable.get(deputyTable.get(classToDelete.classId).sourceClassId).isEmpty())
+                classTable.get(deputyTable.get(classToDelete.classId).sourceClassId).hasSubClass = false;
             deputyTable.remove(classToDelete.classId);
         }
 
         // 删除属性表、类表中的条目
         attrTable.remove(classToDelete.classId);
-        classTable.remove(classToDelete.classId);
+        classTable.get(classToDelete.classId).classType = ClassType.UNALLOCATED;
+        classTable.get(classToDelete.classId).className = null;
         className2classId.remove(className);
-        classToDelete = null;
     }
 
     private void dropClass(int classId) {
@@ -455,74 +543,4 @@ public class Catalog {
             throw new IllegalArgumentException("Class doesn't exist");
         dropClass(classTable.get(classId).className);
     }
-
-    //==============================================辅助方法=======================================================
-
-    /**
-     * 判断一棵表达式树是否能够定型，如果能定型就是一棵合法的表达式树，否则不合法
-     *
-     * @param node     树节点
-     * @param context  哈希表，属性名到类型的映射
-     * @return
-     */
-    public static TypeEnum getTreeType(ExprTreeNode node, HashMap<String, TypeEnum> context) {
-        // 基本类型
-        if (node == null || context == null) return null;
-        if (node.getType().convertToType() != null) return node.getType().convertToType();
-        else {
-            // 变量
-            if (node.getLchild() == null) return context.get(node.getData());
-            else {
-                TypeEnum lchildType = getTreeType(node.getLchild(), context);
-                TypeEnum rchildType = getTreeType(node.getRchild(), context);
-                String op = (String) node.getData();
-                switch (op) {
-                    case "AND":
-                    case "OR":
-                        if (lchildType == TypeEnum.BOOLEAN_TYPE && rchildType == TypeEnum.BOOLEAN_TYPE)
-                            return TypeEnum.BOOLEAN_TYPE;
-                        else
-                            return null;
-
-                    case "=":
-                    case "==":
-                    case "!=":
-                    case "<>":
-                        if (lchildType == TypeEnum.BOOLEAN_TYPE || rchildType == TypeEnum.BOOLEAN_TYPE)
-                            return TypeEnum.BOOLEAN_TYPE;
-                    case "<":
-                    case "<=":
-                    case ">":
-                    case ">=":
-                        if ((lchildType == TypeEnum.INT_TYPE || lchildType == TypeEnum.FLOAT_TYPE) &&
-                                (rchildType == TypeEnum.INT_TYPE || rchildType == TypeEnum.FLOAT_TYPE) ||
-                                (lchildType == TypeEnum.CHAR_TYPE && rchildType == TypeEnum.CHAR_TYPE))
-                            return TypeEnum.BOOLEAN_TYPE;
-                        else return null;
-
-                    case "/":
-                        if ((lchildType == TypeEnum.INT_TYPE || lchildType == TypeEnum.FLOAT_TYPE) &&
-                                (rchildType == TypeEnum.INT_TYPE || rchildType == TypeEnum.FLOAT_TYPE))
-                            return TypeEnum.FLOAT_TYPE;
-                    case "+":
-                    case "-":
-                    case "*":
-                        if ((lchildType == TypeEnum.INT_TYPE || lchildType == TypeEnum.FLOAT_TYPE) &&
-                                (rchildType == TypeEnum.INT_TYPE || rchildType == TypeEnum.FLOAT_TYPE)) {
-                            if (lchildType == rchildType) return lchildType;
-                            else return TypeEnum.FLOAT_TYPE;
-                        } else return null;
-
-                    case "%":
-                        if (lchildType == TypeEnum.INT_TYPE && rchildType == TypeEnum.INT_TYPE)
-                            return TypeEnum.INT_TYPE;
-                        else return null;
-
-                    default:
-                        return null;
-                }
-            }
-        }
-    }
-
 }
